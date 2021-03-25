@@ -1,0 +1,40 @@
+.bpost-form input {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.bpost-weight-form {
+    display: flex;
+    align-items: center;
+}
+
+.bpost-weight-form input {
+    width: 70px;
+    margin-right: 10px;
+}
+
+.bpost-addr-form {
+    display: flex;
+}
+
+.bpost-addr-form input:first-child {
+    flex-grow: 1;
+}
+
+.bpost-addr-form input:last-child {
+    width: 50px;
+    flex-shrink: 0;
+}
+
+.bpost-error {
+    color: #a00;
+}
+
+.wp_spinner {
+    background: url(/wp-admin/images/spinner.gif) no-repeat;
+    background-size: 20px 20px;
+    display: inline-block;
+    opacity: .7;
+    width: 20px;
+    height: 20px;
+}
