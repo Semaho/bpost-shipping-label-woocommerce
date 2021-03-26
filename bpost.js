@@ -21,7 +21,7 @@ function postCreateOrderAndLabelRequest(e)
     {
         type : "post",
         dataType : "json",
-        url : ajaxurl,
+        url : vars.ajax_url,
         data :
         {
             action   : "bpost_create_order_ajax",
@@ -32,7 +32,7 @@ function postCreateOrderAndLabelRequest(e)
         {
             if(response.type == "success")
             {
-                var $download_button = jQuery('<a download="bpost-label" href="data:application/pdf;base64, '+response.bytestring+'" target="_blank" class="button button-primary">Télécharger l&apos;étiquette bpost</a>');
+                var $download_button = jQuery('<a download="bpost-label" href="data:application/pdf;base64, '+response.bytestring+'" target="_blank" class="'+vars.btn_class+'">Télécharger l&apos;étiquette bpost</a>');
                 $bpost_form.html($download_button);
                 $download_button.click();
             }

@@ -14,8 +14,13 @@
 function seb_add_bpost_scripts()
 {
     wp_enqueue_style( 'bpost', plugin_dir_url(__FILE__) . 'bpost.css', array(), get_plugin_data( __FILE__ )['Version'], 'all');
-    wp_enqueue_script( 'scripts', plugin_dir_url(__FILE__) . 'bpost.js', array ( 'jquery' ), get_plugin_data( __FILE__ )['Version'], true);
+    wp_enqueue_script( 'bpostjs', plugin_dir_url(__FILE__) . 'bpost.js', array ( 'jquery' ), get_plugin_data( __FILE__ )['Version'], true);
+    wp_localize_script( 'bpostjs', 'vars', [
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'btn_class' => is_admin() ? "button button-primary" : "dokan-btn dokan-btn-success"
+    ]);
 }
+add_action( 'wp_enqueue_scripts', 'seb_add_bpost_scripts' );
 add_action( 'admin_enqueue_scripts', 'seb_add_bpost_scripts' );
 
 
@@ -98,7 +103,7 @@ function seb_add_bpost_metabox()
     );
 }
 
-add_action('add_meta_boxes', 'seb_add_bpost_metabox');
+// add_action('add_meta_boxes', 'seb_add_bpost_metabox'); // Uncomment to add metabox in WP Dashboard.
 
 
 /**
@@ -107,18 +112,22 @@ add_action('add_meta_boxes', 'seb_add_bpost_metabox');
 
 function seb_bpost_metabox_html($post)
 {
-    $order_id    = get_the_id();
+    $order_id    = is_admin() ? get_the_id() : intval(seb_GET('order_id'));
     $vendor_id   = get_post_meta($order_id, '_dokan_vendor_id', true );
     $ship_weight = wc_get_weight(get_post_meta($order_id, '_cart_weight', true), 'g');
 
     $bpost_label_bytestring = get_post_meta( $order_id, 'bpost_label_bytestring', true );
 
+    $btn_class = is_admin() ? "button button-primary" : "dokan-btn dokan-btn-success";
+
     $errors = '';
 
     // Check bpost information.
-    if ( empty(get_user_meta($vendor_id, 'bpost_accountid')) || empty(get_user_meta($vendor_id, 'bpost_passphrase')) )
+    if ( empty(get_user_meta($vendor_id, 'bpost_accountid', true)) || empty(get_user_meta($vendor_id, 'bpost_passphrase', true)) )
     {
-        $errors .= '<p class="bpost-error">Vous devez compléter les <a href="'.get_edit_profile_url().'#bpost">informations relatives à bpost</a> avant de pouvoir générer des étiquettes.</p>';
+        $errors .= is_admin() ?
+            '<p class="bpost-error">Vous devez compléter les <a href="'.get_edit_profile_url().'#bpost">informations relatives à bpost</a> avant de pouvoir générer des étiquettes.</p>' :
+            '<p class="bpost-error">Demandez à l&apos;administrateur de ce site de compléter les informations relatives à bpost</a> avant de pouvoir générer des étiquettes</p>';
     }
     ?>
 
@@ -139,13 +148,13 @@ function seb_bpost_metabox_html($post)
                 <input id="bpost_order_weight" type="text" required inputmode="numeric" placeholder="Poids" value="<?= $ship_weight ?: '' ?>"> <span>grammes</span>
             </div>
 
-            <button type="button" data-component="create-bpost-order-and-label" data-order="<?= $order_id ?>" class="button button-primary" <?= empty($errors) ? '' : 'disabled' ?>>
+            <button type="button" data-component="create-bpost-order-and-label" data-order="<?= $order_id ?>" class="<?= $btn_class ?>" <?= empty($errors) ? '' : 'disabled' ?>>
                 Créer une étiquette d'envoi bpost
             </button>
 
         <?php else : ?>
 
-            <a download="bpost-label" href="data:application/pdf;base64, <?= $bpost_label_bytestring ?>" target="_blank" class="button button-primary">Télécharger l'étiquette bpost</a>
+            <a download="bpost-label" href="data:application/pdf;base64, <?= $bpost_label_bytestring ?>" target="_blank" class="<?= $btn_class ?>">Télécharger l'étiquette bpost</a>
 
         <?php endif ?>
 
@@ -153,7 +162,28 @@ function seb_bpost_metabox_html($post)
     <?php
 }
 
+function seb_bpost_metabox_html_dokan_before()
+{
+    ?>
+    <div class="" style="width:100%">
+        <div class="dokan-panel dokan-panel-default">
+            <div class="dokan-panel-heading"><strong>Étiquette bpost</strong></div>
+            <div class="dokan-panel-body general-details">
+    <?php
+}
+
+function seb_bpost_metabox_html_dokan_after()
+{
+    ?>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+
+add_action('dokan_order_detail_after_order_items', 'seb_bpost_metabox_html_dokan_before', 5);
 add_action('dokan_order_detail_after_order_items', 'seb_bpost_metabox_html');
+add_action('dokan_order_detail_after_order_items', 'seb_bpost_metabox_html_dokan_after', 15);
 
 
 /**
@@ -166,12 +196,12 @@ function seb_bpost_create_order_ajax()
     $weight   = intval(seb_POST('weight'));
 
     // Check that current user ID == seller ID.
-    // if ( get_current_user_id() != intval(get_post_meta($order_id, '_dokan_vendor_id', true)) )
-    // {
-    //     $result['type'] = "error";
-    //     $result['message'] = '<p>Seul le vendeur lié à cette commande peut créer l&apos;étiquette d&apos;envoi.</p>';
-    //     wp_send_json($result);
-    // }
+    if ( get_current_user_id() != intval(get_post_meta($order_id, '_dokan_vendor_id', true)) )
+    {
+        $result['type'] = "error";
+        $result['message'] = '<p>Seul le vendeur lié à cette commande peut créer l&apos;étiquette d&apos;envoi.</p>';
+        wp_send_json($result);
+    }
 
     $order_created  = seb_bpost_api_create_order($order_id, $weight);
     $pdf_bytestring = seb_bpost_api_get_label($order_id);
