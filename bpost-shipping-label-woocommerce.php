@@ -206,14 +206,20 @@ function seb_bpost_create_order_ajax()
     $order_created  = seb_bpost_api_create_order($order_id, $weight);
     $pdf_bytestring = seb_bpost_api_get_label($order_id);
 
-    if ( $order_created && is_string($pdf_bytestring) )
+    if ( !is_wp_error($order_created) && is_string($pdf_bytestring) )
     {
         $result['type'] = "success";
         $result['bytestring'] = $pdf_bytestring;
     }
-    else {
+    else
+    {
+        $matches = [];
+        preg_match('/<body>(.*?)<\/body>/mi', $order_created->get_error_message('bpost_api_error'), $matches);
+        $standard_msg = '<p>Une erreur est survenue, veuillez réessayer plus tard. Si l&apos;erreur persiste, il est également possible d&apos;utiliser le <a href="https://www.bpost.be/portal/goLogin" target="_blank">Shipping Manager</a> de bpost.</p>';
+        $error_msg = empty($matches) ? '<p>'.$order_created->get_error_message('bpost_api_error').'</p>' : $matches[1]; // $matches[1] contains HTML.
+
         $result['type'] = "error";
-        $result['message'] = '<p>Une erreur est survenue, veuillez réessayer plus tard. Si l&apos;erreur persiste, il est également possible d&apos;utiliser le <a href="https://www.bpost.be/portal/goLogin" target="_blank">Shipping Manager</a> de bpost.</p>';
+        $result['message'] = $error_msg . $standard_msg;
     }
 
     wp_send_json($result);
@@ -305,7 +311,7 @@ function seb_bpost_api_create_order($order_id, $weight)
     $context = stream_context_create($options);
     $result  = file_get_contents($url, false, $context);
 
-    return ( empty($result) && strpos($http_response_header[0], '201') );
+    return ( empty($result) && strpos($http_response_header[0], '201') ) ?: new WP_Error('bpost_api_error', $result);
 }
 
 
